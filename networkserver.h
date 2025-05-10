@@ -18,9 +18,11 @@ public:
 
     void pauseLoop();
     void resumeLoop();
+    void close();
 signals:
     void messageReceived(const QString &message);
     void clientConnected(const QString &address);
+    void clientDisconnected();
 
 private slots:
     void onNewConnection();

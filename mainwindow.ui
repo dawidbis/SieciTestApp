@@ -113,7 +113,7 @@
    <widget class="QPushButton" name="btnStartLoop">
     <property name="geometry">
      <rect>
-      <x>100</x>
+      <x>150</x>
       <y>240</y>
       <width>101</width>
       <height>41</height>
@@ -173,6 +173,35 @@
     </property>
     <property name="text">
      <string>Wartość: </string>
+    </property>
+   </widget>
+   <widget class="QRadioButton" name="rbtn_taktowanie1">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>240</y>
+      <width>111</width>
+      <height>22</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>T: jednostronne</string>
+    </property>
+    <property name="checked">
+     <bool>true</bool>
+    </property>
+   </widget>
+   <widget class="QRadioButton" name="rbtn_taktowanie2">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>260</y>
+      <width>101</width>
+      <height>22</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>T: dwustronne</string>
     </property>
    </widget>
   </widget>

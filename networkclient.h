@@ -16,15 +16,13 @@ public:
 
     bool isConnected() const;
     void disconnectFromServer();
-
-    void pauseLoop();
-    void resumeLoop();
 public slots:
     void onReadyRead();
 
 signals:
     void connected();
     void messageReceived(const QString &msg);
+    void serverDisconnected();
 
 private slots:
     void onConnected();

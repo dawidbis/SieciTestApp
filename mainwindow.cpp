@@ -14,6 +14,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->pushButton->hide();
     ui->btnStartLoop->hide();
     ui->lbl_klie->hide();
+    ui->rbtn_taktowanie1->hide();
+    ui->rbtn_taktowanie2->hide();
 }
 
 MainWindow::~MainWindow()
@@ -51,49 +53,97 @@ void MainWindow::on_pushButton_clicked()
     }
 
     if (isServer) {
-        server = new NetworkServer(this);
+        if(!server){
+            server = new NetworkServer(this);
 
-        connect(server, &NetworkServer::clientConnected, this, [this](const QString &addr) {
-            ui->lbl_pol->setStyleSheet("color: cyan;");
-            ui->lbl_pol->setText(addr + " (PID_wieczko)");
-        });
+            connect(server, &NetworkServer::clientDisconnected, this, [this]() {
+                ui->lbl_pol->setText("");
+            });
 
-        if (server->startServer(selectedPort)) {
-            connect(server, &NetworkServer::messageReceived, this, &MainWindow::onMessageReceived);
-            qDebug() << "Serwer uruchomiony na porcie" << selectedPort;
-        } else {
-            QMessageBox::critical(this, "Błąd", "Nie można uruchomić serwera.");
+            connect(server, &NetworkServer::clientConnected, this, [this](const QString &addr) {
+                ui->lbl_pol->setStyleSheet("color: cyan;");
+                ui->lbl_pol->setText(addr + " (PID_wieczko)");
+            });
+
+            if (server->startServer(selectedPort)) {
+                connect(server, &NetworkServer::messageReceived, this, &MainWindow::onMessageReceived);
+                qDebug() << "Serwer uruchomiony na porcie" << selectedPort;
+            } else {
+                QMessageBox::critical(this, "Błąd", "Nie można uruchomić serwera.");
+            }
+
+            ui->pushButton->setText("Wyłącz serwer");
+            ui->lbl_Info->setText("SERWER ONLINE localhost:" + QString::number(selectedPort));
+            ui->lbl_Info->setStyleSheet("color: green;");
         }
+        else{
+            // wyłączamy serwer i rozłączamy klienta
+            stopLoop();
 
-        ui->pushButton->setText("Wyłącz serwer");
-        ui->lbl_Info->setText("SERWER ONLINE localhost:" + QString::number(selectedPort));
-        ui->lbl_Info->setStyleSheet("color: green;");
-    } else {
-        client = new NetworkClient(this);
+            server->stopServer();
+            server->deleteLater();
+            server = nullptr;
 
-        connect(client, &NetworkClient::connected, this, []() {
-            qDebug() << "Połączono z serwerem!";
-        });
+            // wyczyść informację o kliencie
+            ui->lbl_pol->setText("");
+            ui->pushButton->setText("Uruchom serwer");
+            ui->lbl_Info->setText("SERWER OFFLINE");
+            ui->lbl_Info->setStyleSheet("color: red;");
+        }
+    }
+    else
+    {
+        if(!client){
+            client = new NetworkClient(this);
 
-        connect(client, &NetworkClient::messageReceived, this, [this](const QString &msg) {
-            double value = msg.toDouble();
-            ui->dsb_Dane->setValue(value); // aktualizacja GUI
+            connect(client, &NetworkClient::serverDisconnected, this, [this]() {
+                ui->pushButton->setText("Połącz z wybranym serwerem");
+                ui->lbl_Info->setText("KLIENT niepołączony");
+                ui->lbl_Info->setStyleSheet("color: brown;");
+            });
 
-            // Zapisz nową wartość jako wejście do kolejnego kroku
-            currentStepValue = value;
+            connect(client, &NetworkClient::connected, this, []() {
+                qDebug() << "Połączono z serwerem!";
+            });
+
+            connect(client, &NetworkClient::messageReceived, this, [this](const QString &msg) {
+                double value = msg.toDouble();
+                ui->dsb_Dane->setValue(value);
+                currentStepValue = value;
 
                 if (isLoopActive) {
                     QTimer::singleShot(100, this, [this]() {
                         performNetworkStep();
-                });
-            }
-        });
+                    });
+                }
+            });
 
-        client->connectToServer(selectedIp, selectedPort);
+            client->connectToServer(selectedIp, selectedPort);
 
-        ui->pushButton->setText("Rozłącz z serwerem");
-        ui->lbl_Info->setText("połączony z " + selectedIp + ":" + QString::number(selectedPort));
-        ui->lbl_Info->setStyleSheet("color:  cyan;");
+            // Gdy połączenie zostanie naprawdę nawiązane:
+            connect(client, &NetworkClient::connected, this, [this]() {
+                ui->pushButton->setText("Rozłącz z serwerem");
+                ui->lbl_Info->setText("połączony z " + selectedIp + ":" + QString::number(selectedPort));
+                ui->lbl_Info->setStyleSheet("color: cyan;");
+            });
+
+            connect(client->getSocket(), &QTcpSocket::errorOccurred, this, [this](QAbstractSocket::SocketError socketError){
+                stopLoop();
+                Q_UNUSED(socketError);
+                QMessageBox::critical(this, "Błąd połączenia", "Nie można połączyć z serwerem:\nSerwer nie istnieje lub jest offline.");
+                client->deleteLater();
+                client = nullptr;
+            });
+        } else{
+            stopLoop();
+
+            client->disconnectFromServer();
+            client = nullptr;
+
+            ui->pushButton->setText("Połącz z wybranym serwerem");
+            ui->lbl_Info->setText("KLIENT niepołączony");
+            ui->lbl_Info->setStyleSheet("color: brown;");
+        }
     }
 }
 
@@ -105,6 +155,8 @@ void MainWindow::onMessageReceived(const QString &msg)
 
 void MainWindow::hideServerControls()
 {
+    ui->rbtn_taktowanie1->show();
+    ui->rbtn_taktowanie2->show();
     ui->label->show();
     ui->dsb_Dane->show();
     ui->pushButton->show();
@@ -127,11 +179,29 @@ void MainWindow::hideClientControls()
 
 void MainWindow::performNetworkStep()
 {
-    if (!client || !server)
+    if (!client) {
         return;
+    }
 
-    double currentValue = currentStepValue;  // np. wartość wejściowa lub z poprzedniego kroku
+    double currentValue = currentStepValue;
     client->sendDataToServer(currentValue);
+}
+
+void MainWindow::stopLoop()
+{
+    // zatrzymaj pętlę
+    ui->btnStartLoop->setText("Uruchom pętlę");
+    isLoopActive = false;
+}
+
+void MainWindow::startLoop()
+{
+    // uruchom pętlę: ustaw flagę i wyślij wartość startową
+    double start = ui->dsb_Dane->value();
+    client->sendDataToServer(start);
+
+    ui->btnStartLoop->setText("Zatrzymaj pętlę");
+    isLoopActive = true;
 }
 
 void MainWindow::on_btnStartLoop_clicked()
@@ -142,16 +212,8 @@ void MainWindow::on_btnStartLoop_clicked()
     }
 
     if (isLoopActive) {
-        // zatrzymaj pętlę
-        ui->btnStartLoop->setText("Uruchom pętlę");
-        isLoopActive = false;
+        stopLoop();
     } else {
-        // uruchom pętlę: ustaw flagę i wyślij wartość startową
-        double start = ui->dsb_Dane->value();
-        client->sendDataToServer(start);
-
-        ui->btnStartLoop->setText("Zatrzymaj pętlę");
-        isLoopActive = true;
+        startLoop();
     }
 }
-

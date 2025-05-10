@@ -8,6 +8,8 @@ NetworkClient::NetworkClient(QObject *parent)
     connect(socket, &QTcpSocket::connected, this, &NetworkClient::onConnected);
     // odczyt danych
     connect(socket, &QTcpSocket::readyRead, this, &NetworkClient::onReadyRead);
+
+    connect(socket, &QTcpSocket::disconnected, this, &NetworkClient::serverDisconnected);
 }
 
 void NetworkClient::connectToServer(const QString &host, quint16 port)
@@ -28,12 +30,6 @@ void NetworkClient::onReadyRead()
 
     // pokaż odpowiedź w GUI
     emit messageReceived(QString::number(val));
-
-    // jeżeli pętla aktywna, wyślij kolejną iterację
-    if (loopActive) {
-        double next = obliczeniaKlient(val);
-        sendDataToServer(next);
-    }
 }
 
 double NetworkClient::obliczeniaKlient(double input)
@@ -59,15 +55,6 @@ bool NetworkClient::isConnected() const {
 void NetworkClient::disconnectFromServer() {
     if (socket) {
         socket->disconnectFromHost();
+        socket = nullptr;
     }
-}
-
-void NetworkClient::pauseLoop()
-{
-    loopActive = false;
-}
-
-void NetworkClient::resumeLoop()
-{
-     loopActive = true;
 }

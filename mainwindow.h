@@ -32,8 +32,8 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
-    NetworkServer *server;
-    NetworkClient *client;
+    NetworkServer *server = nullptr;
+    NetworkClient *client = nullptr;
     bool isServer;
     QString selectedIp;
     quint16 selectedPort;
@@ -46,5 +46,7 @@ private:
     bool isLoopActive = false;
     double value = 0.0;
     double currentStepValue = 0.0;
+    void stopLoop();
+    void startLoop();
 };
 #endif // MAINWINDOW_H
