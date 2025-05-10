@@ -1,5 +1,4 @@
 #include "networkclient.h"
-#include "qtimer.h"
 
 NetworkClient::NetworkClient(QObject *parent)
     : QObject(parent), socket(new QTcpSocket(this))
@@ -8,7 +7,7 @@ NetworkClient::NetworkClient(QObject *parent)
     connect(socket, &QTcpSocket::connected, this, &NetworkClient::onConnected);
     // odczyt danych
     connect(socket, &QTcpSocket::readyRead, this, &NetworkClient::onReadyRead);
-
+    // rozłączenie
     connect(socket, &QTcpSocket::disconnected, this, &NetworkClient::serverDisconnected);
 }
 

@@ -59,6 +59,8 @@ void NetworkServer::onNewConnection()
             ip = ip.mid(7);
         }
         emit clientConnected(clientId, ip); // Wyślij ID klienta do GUI
+
+        socketToIpMap[newClient] = ip;
     }
 }
 
@@ -107,14 +109,6 @@ double NetworkServer::obliczeniaSerwer(double input)
     return input += delta;
 }
 
-void NetworkServer::setActiveClient(int index)
-{
-    if (index >= 0 && index < clientSockets.size()) {
-        activeClientSocket = clientSockets[index];
-        qDebug() << "Wybrano aktywnego klienta:" << activeClientSocket->peerAddress().toString();
-    }
-}
-
 QString NetworkServer::generateClientId()
 {
     static int clientIdCounter = 1; // Unikalny licznik ID
@@ -129,4 +123,6 @@ void NetworkServer::setActiveClientById(const QString &clientId)
             break;
         }
     }
+
+    emit activeClientChanged(clientId);
 }

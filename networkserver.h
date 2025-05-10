@@ -16,7 +16,6 @@ public:
     void stopServer();
     void pauseLoop();
     void resumeLoop();
-    void setActiveClient(int index);
     void setActiveClientById(const QString &clientId);
     QTcpSocket* getActiveClient() const { return activeClientSocket; }
     QString getActiveClientIp() const;
@@ -25,6 +24,7 @@ signals:
     void messageReceived(const QString &message);
     void clientConnected(const QString &clientId, const QString &ip);
     void clientDisconnected(const QString &ip);
+    void activeClientChanged(const QString &clientId);
 
 private slots:
     void onNewConnection();

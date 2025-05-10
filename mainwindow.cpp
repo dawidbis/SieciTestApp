@@ -69,13 +69,21 @@ void MainWindow::on_pushButton_clicked()
         if(!server){
             server = new NetworkServer(this);
 
-            connect(server, &NetworkServer::clientDisconnected, this, [this](const QString &ip) {
+            connect(server, &NetworkServer::clientDisconnected, this, [this](const QString &addr) {
                 for (int i = 0; i < clientListModel->rowCount(); ++i) {
                     QStandardItem *item = clientListModel->item(i);
-                    if (item->text().contains("(" + ip + ")")) {
+                    QString displayText = item->text();  // np. "client_1 (192.168.0.2)"
+                    if (displayText.contains(addr)) {
                         clientListModel->removeRow(i);
                         break;
                     }
+                }
+
+                // Dodatkowo jeśli rozłączony był wyświetlany, to go wyczyść
+                if (ui->lbl_Info->text().contains(addr)) {
+                    ui->lbl_Info->setText("SERWER ONLINE localhost:" + QString::number(selectedPort));
+                    ui->lbl_Info->setStyleSheet("color: green;");
+                    this->setWindowTitle("Serwer");
                 }
             });
 
