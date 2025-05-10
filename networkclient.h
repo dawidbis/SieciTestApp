@@ -13,7 +13,9 @@ public:
     void connectToServer(const QString &host, quint16 port);
     void sendDataToServer(double data);
     QTcpSocket* getSocket()  { return this->socket; }
+    void setIsActive(bool isActive){ this->isActive = isActive; }
 
+    bool getIsActive(){ return this->isActive; }
     bool isConnected() const;
     void disconnectFromServer();
 public slots:
@@ -32,6 +34,7 @@ private:
     double pendingValue = 0.0;
     bool hasPendingValue = false;
     bool loopActive = false;
+    bool isActive = false;
 
     double obliczeniaKlient(double input);
 };

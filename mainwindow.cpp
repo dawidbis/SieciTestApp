@@ -82,7 +82,7 @@ void MainWindow::on_pushButton_clicked()
                 // Dodatkowo jeśli rozłączony był wyświetlany, to go wyczyść
                 if (ui->lbl_Info->text().contains(addr)) {
                     ui->lbl_Info->setText("SERWER ONLINE localhost:" + QString::number(selectedPort));
-                    ui->lbl_Info->setStyleSheet("color: green;");
+                    ui->lbl_Info->setStyleSheet("color: lightgreen;");
                     this->setWindowTitle("Serwer");
                 }
             });
@@ -90,6 +90,11 @@ void MainWindow::on_pushButton_clicked()
             connect(server, &NetworkServer::clientConnected, this, [this](const QString &clientId, const QString &ip) {
                 QString clientDisplayText = clientId + " (" + ip + ")";
                 clientListModel->appendRow(new QStandardItem(clientDisplayText));
+
+                // Jeśli to pierwszy klient, od razu oznacz go jako aktywnego
+                if (clientListModel->rowCount() == 1) {
+                    setActiveClient(0); // wywołuje logikę dopisywania (active)
+                }
             });
 
             if (server->startServer(selectedPort)) {
@@ -101,7 +106,7 @@ void MainWindow::on_pushButton_clicked()
 
             ui->pushButton->setText("Wyłącz serwer");
             ui->lbl_Info->setText("SERWER ONLINE localhost:" + QString::number(selectedPort));
-            ui->lbl_Info->setStyleSheet("color: green;");
+            ui->lbl_Info->setStyleSheet("color: lightgreen;");
         }
         else{
             // wyłączamy serwer i rozłączamy klienta
@@ -259,15 +264,23 @@ void MainWindow::on_btnStartLoop_clicked()
 void MainWindow::setActiveClient(int row)
 {
     if (row >= 0 && row < clientListModel->rowCount()) {
-        QString clientDisplayText = clientListModel->item(row)->text();
-        QString clientId = clientDisplayText.section(" ", 0, 0);  // np. client_1
+        for (int i = 0; i < clientListModel->rowCount(); ++i) {
+            QStandardItem *item = clientListModel->item(i);
+            QString text = item->text();
 
-        QString clientIp = clientDisplayText.section("(", 1, 1).chopped(1); // np. 192.168.0.2
+            // Usuń istniejące "(active)" z tekstu
+            if (text.contains(" (active)")) {
+                text.chop(9); // usuwa ostatnie 9 znaków: " (active)"
+                item->setText(text);
+            }
+        }
 
-        QString infoText = QString("Wybrany klient: %1 (%2)").arg(clientId, clientIp);
-        ui->lbl_Info->setText(infoText);
-        ui->lbl_Info->setStyleSheet("color: cyan;");
-        this->setWindowTitle(clientId);  // zmień tytuł okna
+        QStandardItem *activeItem = clientListModel->item(row);
+        QString updatedText = activeItem->text() + " (active)";
+        activeItem->setText(updatedText);
+
+        QString clientId = updatedText.section(" ", 0, 0);  // np. client_1
+        QString clientIp = updatedText.section("(", 1, 1).chopped(1); // np. 192.168.0.2
 
         if (server) {
             server->setActiveClientById(clientId);
