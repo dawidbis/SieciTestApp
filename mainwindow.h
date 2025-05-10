@@ -7,6 +7,8 @@
 #include "roledialog.h"
 #include <QMessageBox>
 #include <QTimer>
+#include <QStringListModel>
+#include <QStandardItemModel>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -23,6 +25,8 @@ public:
     ~MainWindow();
 
     void performNetworkStep();
+    void setActiveClient(int row);
+
 private slots:
     void on_btn_TrybSieciowy_clicked();
     void on_pushButton_clicked();
@@ -38,6 +42,8 @@ private:
     QString selectedIp;
     quint16 selectedPort;
     bool trybSieciowyUstawiony = false;
+    QStandardItemModel *clientListModel;
+    QList<QString> clientAddresses; // przechowuje adresy klientów w tej samej kolejności co serwer
 
     void hideServerControls();
     void hideClientControls();

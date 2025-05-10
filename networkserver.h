@@ -4,6 +4,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QRandomGenerator>
+#include <QMap>
 
 class NetworkServer : public QObject
 {
@@ -12,29 +13,34 @@ class NetworkServer : public QObject
 public:
     explicit NetworkServer(QObject *parent = nullptr);
     bool startServer(quint16 port);
-
     void stopServer();
-    bool isConnected() const;
-
     void pauseLoop();
     void resumeLoop();
-    void close();
+    void setActiveClient(int index);
+    void setActiveClientById(const QString &clientId);
+    QTcpSocket* getActiveClient() const { return activeClientSocket; }
+    QString getActiveClientIp() const;
+
 signals:
     void messageReceived(const QString &message);
-    void clientConnected(const QString &address);
-    void clientDisconnected();
+    void clientConnected(const QString &clientId, const QString &ip);
+    void clientDisconnected(const QString &ip);
 
 private slots:
     void onNewConnection();
     void onReadyRead();
+    void onClientDisconnected();
 
 private:
     QTcpServer *server;
-    QTcpSocket *clientSocket;
-
+    QList<QTcpSocket*> clientSockets;
+    QMap<QTcpSocket*, QString> clientIds;  // Mapa socketów i ich ID
+    QMap<QTcpSocket*, QString> socketToIpMap;  // Mapa socketów i ich adresów IP
+    QTcpSocket *activeClientSocket = nullptr;
     bool loopActive = false;
 
     double obliczeniaSerwer(double input);
+    QString generateClientId();
 };
 
 #endif // NETWORKSERVER_H

@@ -136,19 +136,6 @@
      <string/>
     </property>
    </widget>
-   <widget class="QLabel" name="lbl_pol">
-    <property name="geometry">
-     <rect>
-      <x>80</x>
-      <y>160</y>
-      <width>171</width>
-      <height>20</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string/>
-    </property>
-   </widget>
    <widget class="QLabel" name="lbl_klie">
     <property name="geometry">
      <rect>
@@ -202,6 +189,16 @@
     </property>
     <property name="text">
      <string>T: dwustronne</string>
+    </property>
+   </widget>
+   <widget class="QListView" name="listView">
+    <property name="geometry">
+     <rect>
+      <x>60</x>
+      <y>160</y>
+      <width>221</width>
+      <height>51</height>
+     </rect>
     </property>
    </widget>
   </widget>

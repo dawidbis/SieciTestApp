@@ -2,7 +2,7 @@
 #include <QDebug>
 
 NetworkServer::NetworkServer(QObject *parent)
-    : QObject(parent), server(new QTcpServer(this)), clientSocket(nullptr)
+    : QObject(parent), server(new QTcpServer(this))
 {
     connect(server, &QTcpServer::newConnection, this, &NetworkServer::onNewConnection);
 }
@@ -14,20 +14,18 @@ bool NetworkServer::startServer(quint16 port)
 
 void NetworkServer::stopServer()
 {
-    // Przestań nasłuchiwać nowych połączeń
     server->close();
 
-    // Jeśli istnieje połączenie z klientem, rozłącz je
-    if (clientSocket) {
-        clientSocket->disconnectFromHost();
-        // Poczekaj maksymalnie 1s na rozłączenie
-        if (!clientSocket->waitForDisconnected(1000)) {
-            qDebug() << "NetworkServer::stopServer - klient nie rozłączył się na czas";
+    for (QTcpSocket *socket : clientSockets) {
+        if (socket->state() != QAbstractSocket::UnconnectedState) {
+            socket->disconnectFromHost();
+            socket->waitForDisconnected(1000);
         }
-        // Usuń socket klienta po zakończeniu eventów
-        clientSocket->deleteLater();
-        clientSocket = nullptr;
+        socket->deleteLater();
     }
+
+    clientSockets.clear();
+    activeClientSocket = nullptr;
 }
 
 void NetworkServer::pauseLoop()
@@ -41,26 +39,36 @@ void NetworkServer::resumeLoop()
 
 void NetworkServer::onNewConnection()
 {
-    clientSocket = server->nextPendingConnection();
+    while (server->hasPendingConnections()) {
+        QTcpSocket *newClient = server->nextPendingConnection();
 
-    connect(clientSocket, &QTcpSocket::readyRead, this, &NetworkServer::onReadyRead);
+        QString clientId = generateClientId();  // Unikalny identyfikator
+        clientIds[newClient] = clientId;        // Przechowywanie ID dla danego klienta
+        connect(newClient, &QTcpSocket::readyRead, this, &NetworkServer::onReadyRead);
+        connect(newClient, &QTcpSocket::disconnected, this, &NetworkServer::onClientDisconnected);
 
-    connect(clientSocket, &QTcpSocket::disconnected, this, [this]() {
-        qDebug() << "NetworkServer: klient się rozłączył";
-        emit clientDisconnected();
-    });
+        clientSockets.append(newClient);
 
-    QString ip = clientSocket->peerAddress().toString();
-    if (clientSocket->peerAddress().protocol() == QAbstractSocket::IPv6Protocol &&
-        ip.startsWith("::ffff:")) {
-        ip = ip.mid(7);  // usuń "::ffff:" z początku
+        if (!activeClientSocket) {
+            activeClientSocket = newClient;
+        }
+
+        QString ip = newClient->peerAddress().toString();
+        if (newClient->peerAddress().protocol() == QAbstractSocket::IPv6Protocol &&
+            ip.startsWith("::ffff:")) {
+            ip = ip.mid(7);
+        }
+        emit clientConnected(clientId, ip); // Wyślij ID klienta do GUI
     }
-    emit clientConnected(ip);
 }
 
 void NetworkServer::onReadyRead()
 {
-    QByteArray buf = clientSocket->readAll();
+    QTcpSocket *senderSocket = qobject_cast<QTcpSocket*>(sender());
+    if (!senderSocket || senderSocket != activeClientSocket)
+        return;
+
+    QByteArray buf = senderSocket->readAll();
     QDataStream in(&buf, QIODevice::ReadOnly);
     double val; in >> val;
 
@@ -70,11 +78,55 @@ void NetworkServer::onReadyRead()
     QByteArray bout;
     QDataStream outStream(&bout, QIODevice::WriteOnly);
     outStream << out;
-    clientSocket->write(bout);
+    senderSocket->write(bout);
+}
+
+void NetworkServer::onClientDisconnected()
+{
+    QTcpSocket *client = qobject_cast<QTcpSocket *>(sender());
+    if (!client) return;
+
+    QString ip = socketToIpMap.value(client, "Nieznany IP");
+
+    // Usuń klienta z listy i mapy
+    clientSockets.removeAll(client);
+    socketToIpMap.remove(client);
+
+    // Jeśli rozłączył się aktywny klient — zmień na innego
+    if (activeClientSocket == client) {
+        activeClientSocket = clientSockets.isEmpty() ? nullptr : clientSockets.first();
+    }
+
+    client->deleteLater();
+    emit clientDisconnected(ip);
 }
 
 double NetworkServer::obliczeniaSerwer(double input)
 {
     double delta = -0.01 + QRandomGenerator::global()->generateDouble() * 0.02;
     return input += delta;
+}
+
+void NetworkServer::setActiveClient(int index)
+{
+    if (index >= 0 && index < clientSockets.size()) {
+        activeClientSocket = clientSockets[index];
+        qDebug() << "Wybrano aktywnego klienta:" << activeClientSocket->peerAddress().toString();
+    }
+}
+
+QString NetworkServer::generateClientId()
+{
+    static int clientIdCounter = 1; // Unikalny licznik ID
+    return QString("client_%1").arg(clientIdCounter++);
+}
+
+void NetworkServer::setActiveClientById(const QString &clientId)
+{
+    for (QTcpSocket *client : clientSockets) {
+        if (clientIds[client] == clientId) {
+            activeClientSocket = client;
+            break;
+        }
+    }
 }

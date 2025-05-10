@@ -16,6 +16,19 @@ MainWindow::MainWindow(QWidget *parent)
     ui->lbl_klie->hide();
     ui->rbtn_taktowanie1->hide();
     ui->rbtn_taktowanie2->hide();
+
+    clientListModel = new QStandardItemModel(this);
+    ui->listView->setModel(clientListModel);
+
+    connect(ui->listView->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, [this](const QModelIndex &current, const QModelIndex &) {
+                if (current.isValid()) {
+                    setActiveClient(current.row());
+                }
+            });
+
+    // ukryj na starcie
+    ui->listView->hide();
 }
 
 MainWindow::~MainWindow()
@@ -56,13 +69,19 @@ void MainWindow::on_pushButton_clicked()
         if(!server){
             server = new NetworkServer(this);
 
-            connect(server, &NetworkServer::clientDisconnected, this, [this]() {
-                ui->lbl_pol->setText("");
+            connect(server, &NetworkServer::clientDisconnected, this, [this](const QString &ip) {
+                for (int i = 0; i < clientListModel->rowCount(); ++i) {
+                    QStandardItem *item = clientListModel->item(i);
+                    if (item->text().contains("(" + ip + ")")) {
+                        clientListModel->removeRow(i);
+                        break;
+                    }
+                }
             });
 
-            connect(server, &NetworkServer::clientConnected, this, [this](const QString &addr) {
-                ui->lbl_pol->setStyleSheet("color: cyan;");
-                ui->lbl_pol->setText(addr + " (PID_wieczko)");
+            connect(server, &NetworkServer::clientConnected, this, [this](const QString &clientId, const QString &ip) {
+                QString clientDisplayText = clientId + " (" + ip + ")";
+                clientListModel->appendRow(new QStandardItem(clientDisplayText));
             });
 
             if (server->startServer(selectedPort)) {
@@ -84,8 +103,12 @@ void MainWindow::on_pushButton_clicked()
             server->deleteLater();
             server = nullptr;
 
-            // wyczyść informację o kliencie
-            ui->lbl_pol->setText("");
+            for (int i = 0; i < clientListModel->rowCount(); ++i) {
+                QStandardItem *item = clientListModel->item(i);
+                clientListModel->removeRow(i);
+            }
+
+            ui->lbl_Info->setText("");
             ui->pushButton->setText("Uruchom serwer");
             ui->lbl_Info->setText("SERWER OFFLINE");
             ui->lbl_Info->setStyleSheet("color: red;");
@@ -130,7 +153,8 @@ void MainWindow::on_pushButton_clicked()
             connect(client->getSocket(), &QTcpSocket::errorOccurred, this, [this](QAbstractSocket::SocketError socketError){
                 stopLoop();
                 Q_UNUSED(socketError);
-                QMessageBox::critical(this, "Błąd połączenia", "Nie można połączyć z serwerem:\nSerwer nie istnieje lub jest offline.");
+                QString errorMessage = client->getSocket()->errorString();
+                QMessageBox::critical(this, "Błąd połączenia", errorMessage);
                 client->deleteLater();
                 client = nullptr;
             });
@@ -155,6 +179,7 @@ void MainWindow::onMessageReceived(const QString &msg)
 
 void MainWindow::hideServerControls()
 {
+    ui->listView->hide();
     ui->rbtn_taktowanie1->show();
     ui->rbtn_taktowanie2->show();
     ui->label->show();
@@ -168,6 +193,7 @@ void MainWindow::hideServerControls()
 
 void MainWindow::hideClientControls()
 {
+    ui->listView->show();
     ui->lbl_klie->show();
     ui->lbl_Opis->show();
     ui->lbl_WynikDane->show();
@@ -191,6 +217,8 @@ void MainWindow::stopLoop()
 {
     // zatrzymaj pętlę
     ui->btnStartLoop->setText("Uruchom pętlę");
+    ui->rbtn_taktowanie1->setCheckable(true);
+    ui->rbtn_taktowanie2->setCheckable(true);
     isLoopActive = false;
 }
 
@@ -201,6 +229,8 @@ void MainWindow::startLoop()
     client->sendDataToServer(start);
 
     ui->btnStartLoop->setText("Zatrzymaj pętlę");
+    if (!ui->rbtn_taktowanie1->isChecked()) ui->rbtn_taktowanie1->setCheckable(false);
+    if (!ui->rbtn_taktowanie2->isChecked()) ui->rbtn_taktowanie2->setCheckable(false);
     isLoopActive = true;
 }
 
@@ -215,5 +245,24 @@ void MainWindow::on_btnStartLoop_clicked()
         stopLoop();
     } else {
         startLoop();
+    }
+}
+
+void MainWindow::setActiveClient(int row)
+{
+    if (row >= 0 && row < clientListModel->rowCount()) {
+        QString clientDisplayText = clientListModel->item(row)->text();
+        QString clientId = clientDisplayText.section(" ", 0, 0);  // np. client_1
+
+        QString clientIp = clientDisplayText.section("(", 1, 1).chopped(1); // np. 192.168.0.2
+
+        QString infoText = QString("Wybrany klient: %1 (%2)").arg(clientId, clientIp);
+        ui->lbl_Info->setText(infoText);
+        ui->lbl_Info->setStyleSheet("color: cyan;");
+        this->setWindowTitle(clientId);  // zmień tytuł okna
+
+        if (server) {
+            server->setActiveClientById(clientId);
+        }
     }
 }
